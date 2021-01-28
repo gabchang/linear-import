@@ -4,12 +4,14 @@ import { ImportAnswers } from './types';
 import { importIssues } from './importIssues';
 import { githubImport } from './importers/github';
 import { jiraCsvImport } from './importers/jiraCsv';
+import { notionMdImport } from './importers/notionMd';
 import { asanaCsvImport } from './importers/asanaCsv';
 import { pivotalCsvImport } from './importers/pivotalCsv';
 import { clubhouseCsvImport } from './importers/clubhouseCsv';
 import { trelloJsonImport } from './importers/trelloJson';
 
 inquirer.registerPrompt('filePath', require('inquirer-file-path'));
+inquirer.registerPrompt('directory', require('inquirer-directory'));
 
 (async () => {
   try {
@@ -24,6 +26,10 @@ inquirer.registerPrompt('filePath', require('inquirer-file-path'));
         name: 'service',
         message: 'Which service would you like to import from?',
         choices: [
+          {
+            name: 'Notion (Leads, MD export)',
+            value: 'notionMd',
+          },
           {
             name: 'GitHub',
             value: 'github',
@@ -57,6 +63,9 @@ inquirer.registerPrompt('filePath', require('inquirer-file-path'));
     switch (importAnswers.service) {
       case 'github':
         importer = await githubImport();
+        break;
+      case 'notionMd':
+        importer = await notionMdImport();
         break;
       case 'jiraCsv':
         importer = await jiraCsvImport();

@@ -71,6 +71,72 @@ interface LabelCreateResponse {
   };
 }
 
+interface PostIssue {
+  teamId: string;
+  projectId?: boolean;
+  title: string;
+  description?: string;
+  priority?: number;
+  labelIds?: string[];
+  stateId?: string;
+  assigneeId?: string;
+}
+
+// Build comments into issue description
+const buildComments = async (
+  client: GraphQLClientRequest,
+  description: string,
+  comments: Comment[],
+  importData: ImportResult
+) => {
+  const newComments: string[] = [];
+  for (const comment of comments) {
+    const user = importData.users[comment.userId];
+    const date = comment.createdAt
+      ? comment.createdAt.toISOString().split('T')[0]
+      : undefined;
+
+    const body = await replaceImagesInMarkdown(
+      client,
+      comment.body || '',
+      importData.resourceURLSuffix
+    );
+    newComments.push(`**${user.name}**${' ' + date}\n\n${body}\n`);
+  }
+  return `${description}\n\n---\n\n${newComments.join('\n\n')}`;
+};
+
+const postIssue = async (linear: GraphQLClientRequest, data: PostIssue) => {
+  await linear(
+    `
+      mutation createIssue(
+          $teamId: String!,
+          $projectId: String,
+          $title: String!,
+          $description: String,
+          $priority: Int,
+          $labelIds: [String!]
+          $stateId: String
+          $assigneeId: String
+        ) {
+        issueCreate(input: {
+                            teamId: $teamId,
+                            projectId: $projectId,
+                            title: $title,
+                            description: $description,
+                            priority: $priority,
+                            labelIds: $labelIds
+                            stateId: $stateId
+                            assigneeId: $assigneeId
+                          }) {
+          success
+        }
+      }
+    `,
+    data
+  );
+};
+
 /**
  * Import issues into Linear via the API.
  */
@@ -310,6 +376,14 @@ export const importIssues = async (apiKey: string, importer: Importer) => {
   }
 
   // Create issues
+  const importLog: {
+    errors: { title: string; e: Error }[];
+    success: string[];
+  } = {
+    errors: [],
+    success: [],
+  };
+
   for (const issue of importData.issues) {
     const issueDescription = issue.description
       ? await replaceImagesInMarkdown(
@@ -349,33 +423,8 @@ export const importIssues = async (apiKey: string, importer: Importer) => {
         ? importAnswers.targetAssignee
         : undefined;
 
-    await linear(
-      `
-          mutation createIssue(
-              $teamId: String!,
-              $projectId: String,
-              $title: String!,
-              $description: String,
-              $priority: Int,
-              $labelIds: [String!]
-              $stateId: String
-              $assigneeId: String
-            ) {
-            issueCreate(input: {
-                                teamId: $teamId,
-                                projectId: $projectId,
-                                title: $title,
-                                description: $description,
-                                priority: $priority,
-                                labelIds: $labelIds
-                                stateId: $stateId
-                                assigneeId: $assigneeId
-                              }) {
-              success
-            }
-          }
-        `,
-      {
+    try {
+      await postIssue(linear, {
         teamId,
         projectId,
         title: issue.title,
@@ -384,37 +433,30 @@ export const importIssues = async (apiKey: string, importer: Importer) => {
         labelIds,
         stateId,
         assigneeId,
-      }
-    );
+      });
+      importLog.success.push(issue.title);
+    } catch (e) {
+      importLog.errors.push({
+        e,
+        title: issue.title,
+      });
+      console.log(`-- error for ${issue.title}`);
+    }
   }
 
-  console.error(
+  console.log(
     chalk.green(
-      `${importer.name} issues imported to your backlog: https://linear.app/team/${teamKey}/backlog`
+      `${importLog.success.length} ${importer.name} issues imported to your board: https://linear.app/team/${teamKey}/board`
     )
   );
-};
-
-// Build comments into issue description
-const buildComments = async (
-  client: GraphQLClientRequest,
-  description: string,
-  comments: Comment[],
-  importData: ImportResult
-) => {
-  const newComments: string[] = [];
-  for (const comment of comments) {
-    const user = importData.users[comment.userId];
-    const date = comment.createdAt
-      ? comment.createdAt.toISOString().split('T')[0]
-      : undefined;
-
-    const body = await replaceImagesInMarkdown(
-      client,
-      comment.body || '',
-      importData.resourceURLSuffix
-    );
-    newComments.push(`**${user.name}**${' ' + date}\n\n${body}\n`);
-  }
-  return `${description}\n\n---\n\n${newComments.join('\n\n')}`;
+  console.log(
+    chalk.red(
+      `${importLog.errors.length} ${importer.name} issues failed to import`
+    )
+  );
+  console.log(
+    chalk.red(
+      importLog.errors.map(({ title }, i) => `${i} - ${title}`).join('\n')
+    )
+  );
 };
