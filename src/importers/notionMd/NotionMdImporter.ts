@@ -46,8 +46,9 @@ export class NotionMdImporter implements Importer {
       priority: mapper.priority(parser.criticity(md)),
       status: mapper.status(parser.status(md)),
       labels: getter.labels(parser.apps(md)),
-      description: parser.description(md),
+      description: parser.description(md, filename),
       assigneeId,
+      url: parser.url(filename),
     };
   };
 

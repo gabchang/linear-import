@@ -8,9 +8,10 @@ export interface StatusType {
 
 export interface NotionIssueImportType {
   title: string;
-  priority: number;
+  priority?: number;
   labels: Array<string>;
   status: string;
   assigneeId: string;
   description: string;
+  url?: string;
 }

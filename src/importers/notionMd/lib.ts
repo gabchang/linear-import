@@ -34,7 +34,7 @@ const removeMatch = (exp: RegExp): ((input: string) => string) => {
   return (input: string): string => input.replace(exp, '');
 };
 
-const getDescription = (input: string) => {
+const getDescription = (input: string, filename?: string) => {
   const epic = firstMatch(new RegExp(/^Epic: (.*)/m))(input);
   const epicId = firstMatch(new RegExp(/[.*%20]*([a-f0-9]+)\.md/))(epic);
 
@@ -46,6 +46,8 @@ const getDescription = (input: string) => {
     );
   };
 
+  const url = filename ? urlFromFilename(filename) : null;
+
   return pipe(
     removeMatch(new RegExp(/^# .*\n\n/)),
     removeMatch(
@@ -54,8 +56,16 @@ const getDescription = (input: string) => {
       )
     ),
     shortenUrls,
-    concat(`Epic: https://notion.so/${epicId}\n`)
+    concat(`Epic: https://notion.so/${epicId}\n`),
+    str => (url ? concat(`Notion URL: ${url}\n`, str) : str)
   )(input);
+};
+
+const urlFromFilename = (input: string): string => {
+  return input.replace(
+    new RegExp(/.* ([a-f0-9]+).md/),
+    'https://www.notion.so/$1'
+  );
 };
 
 /**
@@ -78,6 +88,7 @@ export const parser = {
   status: firstMatch(new RegExp(/^Status: (.*)/m)),
   title: firstMatch(new RegExp(/^# (.*)/)), // 1st line !
   description: getDescription,
+  url: urlFromFilename,
 };
 
 /**

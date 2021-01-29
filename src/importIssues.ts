@@ -377,7 +377,7 @@ export const importIssues = async (apiKey: string, importer: Importer) => {
 
   // Create issues
   const importLog: {
-    errors: { title: string; e: Error }[];
+    errors: { title: string; e: Error; url?: string }[];
     success: string[];
   } = {
     errors: [],
@@ -439,8 +439,10 @@ export const importIssues = async (apiKey: string, importer: Importer) => {
       importLog.errors.push({
         e,
         title: issue.title,
+        url: issue.url,
       });
       console.log(`-- error for ${issue.title}`);
+      if (issue.url) console.log(`   ${issue.url}`);
     }
   }
 
@@ -456,7 +458,9 @@ export const importIssues = async (apiKey: string, importer: Importer) => {
   );
   console.log(
     chalk.red(
-      importLog.errors.map(({ title }, i) => `${i} - ${title}`).join('\n')
+      importLog.errors
+        .map(({ title, url }, i) => `${i} - ${title} - ${url}`)
+        .join('\n')
     )
   );
 };
